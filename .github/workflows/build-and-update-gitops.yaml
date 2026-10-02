@@ -1,0 +1,116 @@
+name: Build and Update GitOps
+
+# Runs whenever application code changes on main, or manually via the
+# "Run workflow" button in the Actions tab.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/build-and-update-gitops.yaml"
+  workflow_dispatch: {}
+
+# Minimum permissions this workflow needs: read the app repo's contents,
+# and mint a short-lived OIDC token to exchange for AWS credentials.
+# There is no Kubernetes or EKS access here at all - deployment is Argo CD's job.
+permissions:
+  contents: read
+  id-token: write
+
+# Prevent two releases from running at the same time. A run that is
+# already pushing an image or updating the platform repo must finish
+# before the next one starts - cancelling it halfway could leave ECR
+# and the platform repository out of sync with each other.
+concurrency:
+  group: shop-app-release
+  cancel-in-progress: false
+
+env:
+  # Capture the application commit SHA once, up front. Later in this job
+  # we check out a *second* repository (the platform repo) into its own
+  # directory. Capturing the SHA now - instead of re-deriving it after
+  # that checkout - guarantees the image tag and commit message always
+  # refer to this app commit, never to anything from the platform repo.
+  APP_COMMIT_SHA: ${{ github.sha }}
+
+jobs:
+  build-and-release:
+    name: Build image and update platform repo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@v4
+
+      # Exchanges this workflow run's OIDC token for short-lived AWS
+      # credentials. No AWS access key / secret key is stored anywhere.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build application image
+        run: |
+          docker build \
+            -t "${{ vars.ECR_REPOSITORY_URL }}:${{ env.APP_COMMIT_SHA }}" \
+            ./app
+
+      # Tagged with the full application commit SHA - never "latest" -
+      # so every image in ECR traces back to an exact commit.
+      - name: Push image to Amazon ECR
+        run: |
+          docker push "${{ vars.ECR_REPOSITORY_URL }}:${{ env.APP_COMMIT_SHA }}"
+
+      # Checked out into ./platform so it never overwrites the app
+      # repository checkout at the workspace root. GITOPS_TOKEN is a
+      # fine-grained PAT scoped only to this one repository (see README).
+      - name: Checkout platform repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.GITOPS_REPOSITORY }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: platform
+          ref: main
+
+      - name: Update image in gitops/deployment.yaml
+        run: |
+          set -euo pipefail
+          MANIFEST="platform/gitops/deployment.yaml"
+          NEW_IMAGE="${{ vars.ECR_REPOSITORY_URL }}:${{ env.APP_COMMIT_SHA }}"
+
+          # The deployment manifest marks the one line we are allowed to
+          # change with a trailing "# workshop-shop-image" comment. Fail
+          # loudly instead of silently doing nothing if that marker is
+          # ever removed, renamed, or the file moves.
+          if ! grep -q "# workshop-shop-image" "$MANIFEST"; then
+            echo "::error::Could not find the '# workshop-shop-image' marker in $MANIFEST"
+            exit 1
+          fi
+
+          # One simple, readable replacement command - no Kustomize, no
+          # Helm chart, no image updater. It rewrites only the image line
+          # that carries the marker comment.
+          sed -i -E "s|image:.*# workshop-shop-image|image: ${NEW_IMAGE} # workshop-shop-image|" "$MANIFEST"
+
+      - name: Commit and push manifest change
+        run: |
+          set -euo pipefail
+          cd platform
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # If the image tag didn't actually change (e.g. workflow was
+          # re-run for the same commit), there is nothing to commit.
+          # Exit cleanly rather than failing or creating an empty commit.
+          if git diff --quiet; then
+            echo "No manifest changes to commit - image already up to date."
+            exit 0
+          fi
+
+          git add gitops/deployment.yaml
+          git commit -m "Deploy shop-app@${{ env.APP_COMMIT_SHA }}"
+          git push origin main

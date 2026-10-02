@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workshop Shop</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Banner text and version come from the server so there is one
+       place to edit them (see server.js) - useful for the live demo. -->
+  <header class="banner" id="banner">Loading store...</header>
+
+  <main class="layout">
+    <section class="products">
+      <h1>Workshop Shop</h1>
+      <div class="product-grid" id="product-grid">
+        <!-- Product cards are rendered by script.js -->
+      </div>
+    </section>
+
+    <aside class="cart" id="cart">
+      <h2>Your Cart</h2>
+      <div id="cart-items">
+        <p class="empty-cart-message">Your cart is empty.</p>
+      </div>
+      <div class="cart-total">
+        Total: <span id="cart-total">£0.00</span>
+      </div>
+      <button id="checkout-button" disabled>Checkout (demo)</button>
+      <p class="demo-note">
+        This is a demonstration checkout. No payment is processed and no
+        order is really placed.
+      </p>
+    </aside>
+  </main>
+
+  <!-- Simple modal for the simulated order confirmation -->
+  <div class="modal-overlay" id="confirmation-overlay">
+    <div class="modal">
+      <h2>Order Confirmed (Demo)</h2>
+      <p id="confirmation-text"></p>
+      <p class="demo-note">
+        This is a simulated confirmation for workshop purposes only.
+      </p>
+      <button id="confirmation-close">Close</button>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    Workshop Shop <span id="app-version"></span>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
