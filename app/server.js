@@ -16,7 +16,7 @@ const APP_VERSION = "1.0.0";
 // Edit this banner to change the message shown at the top of the store.
 // This is the easiest, safest field to change live during the workshop
 // to demonstrate the full CI/CD -> Argo CD pipeline.
-const STORE_BANNER = "Welcome to Workshop Shop - everything 10% off today!";
+const STORE_BANNER = "Welcome to Workshop Shop - everything 20% off today!";
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
