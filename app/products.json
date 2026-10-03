@@ -4,5 +4,5 @@
   { "id": "p3", "name": "USB-C Hub", "pricePence": 2499, "icon": "🔌" },
   { "id": "p4", "name": "Noise-Cancelling Headphones", "pricePence": 8999, "icon": "🎧" },
   { "id": "p5", "name": "Webcam HD", "pricePence": 3499, "icon": "📷" },
-  { "id": "p6", "name": "Laptop Stand", "pricePence": 2999, "icon": "💻" }
+  { "id": "p6", "name": "Laptop Stand", "pricePence": 1999, "icon": "💻" }
 ]
